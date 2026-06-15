@@ -435,32 +435,15 @@ export default function ChatView({ initialTaskId }: Props) {
     }
 
     try {
-      const planRes = await fetch('/api/task/plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-User-Address': address, 'X-API-Key': apiKey },
-        body: JSON.stringify({ userMessage: prompt, preferredAgentIds: preferredAgentIds.length > 0 ? preferredAgentIds : undefined }),
-      })
-      const plan: PlanPreview = await planRes.json()
-      setPlanPreview(plan)
-
-      addChatMessage(chatId, {
-        id: randomUUID(), type: 'system',
-        content: buildPlanMessage(plan),
-        createdAt: Date.now(),
-      })
-
-      if (plan.hasUserAgents && !agentChoice) return  // Wait for user choice
-
       if (!chatSession) {
         setShowAuthorize(true)
         return
       }
-
-      await executeTask(prompt, plan, agentChoice ?? agentPreference)
+      await executeTask(prompt, null, agentPreference)
     } catch (err) {
       addChatMessage(chatId, {
         id: randomUUID(), type: 'system',
-        content: `Planning failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        content: `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
         createdAt: Date.now(),
       })
     } finally {

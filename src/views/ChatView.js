@@ -170,30 +170,202 @@ export default function ChatView({ initialTaskId }) {
             useSessionStore.getState().renameChat(chatId, autoName);
         }
         try {
-            const planRes = await fetch('/api/task/plan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-User-Address': address, 'X-API-Key': apiKey },
-                body: JSON.stringify({ userMessage: prompt, preferredAgentIds: preferredAgentIds.length > 0 ? preferredAgentIds : undefined }),
+      if (!chatSession) {
+        setShowAuthorize(true)
+        return
+      }
+      await executeTask(prompt, null, agentPreference)
+    } catch (err) {
+      addChatMessage(chatId, {
+        id: randomUUID(), type: 'system',
+        content: `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        createdAt: Date.now(),
+      })
+    } finally {
+      setIsPlanning(false)
+    }
+  }ort { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAccount } from 'wagmi';
+import { useNavigate } from 'react-router-dom';
+import { useSessionStore } from '../store/session';
+import { submitTask, subscribeToTask, fetchChats, fetchMessages } from '../lib/api';
+import DelegationGraph from '../components/DelegationGraph';
+import MessageThread from '../components/MessageThread';
+import AudioPlayer from '../components/AudioPlayer';
+import AuthorizeModal from '../components/AuthorizeModal';
+import ScheduleModal from '../components/ScheduleModal';
+import { randomUUID } from '../lib/utils';
+export default function ChatView({ initialTaskId }) {
+    const { address } = useAccount();
+    const navigate = useNavigate();
+    const { chats, activeChatId, createChat, setActiveChat, getChat, getActiveChat, setChatSession, addChatMessage, updateChatMessage, updateChatSession, clearChatMessages, taskHistory, addTask, updateTask, updateDelegationStep, getTask, session, preferredAgentIds, agentPreference, apiKey, } = useSessionStore();
+    // Ensure there's always an active chat — set from existing chats only, never create here
+    useEffect(() => {
+        const state = useSessionStore.getState();
+        if (!state.activeChatId || !state.chats[state.activeChatId]) {
+            const firstId = Object.keys(state.chats)[0];
+            if (firstId)
+                state.setActiveChat(firstId);
+            // Don't create chats here — App.tsx handles creation after hydration
+        }
+    }, []); // eslint-disable-line
+    const activeChat = getActiveChat();
+    const chatId = activeChatId ?? '';
+    const messages = activeChat?.messages ?? [];
+    const chatSession = activeChat?.session ?? null;
+    const [input, setInput] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isPlanning, setIsPlanning] = useState(false);
+    const [planPreview, setPlanPreview] = useState(null);
+    const [pendingPrompt, setPendingPrompt] = useState('');
+    const [agentChoice, setAgentChoice] = useState(null);
+    const [showAuthorize, setShowAuthorize] = useState(false);
+    const [showSchedule, setShowSchedule] = useState(false);
+    const [schedulePrompt, setSchedulePrompt] = useState('');
+    const [activeTaskIds, setActiveTaskIds] = useState(new Set());
+    const inputRef = useRef(null);
+    const threadRef = useRef(null);
+    const unsubRefs = useRef(new Map());
+    // Auto-scroll
+    useEffect(() => {
+        if (threadRef.current) {
+            threadRef.current.scrollTop = threadRef.current.scrollHeight;
+        }
+    }, [messages.length]);
+    // Cleanup SSE on unmount
+    useEffect(() => {
+        return () => { unsubRefs.current.forEach((unsub) => unsub()); };
+    }, []);
+    const subscribeToTaskEvents = useCallback((taskId, msgId) => {
+        if (!address || !chatId)
+            return;
+        unsubRefs.current.get(taskId)?.();
+        const unsub = subscribeToTask(taskId, address, apiKey, (event) => handleSSEEvent(taskId, msgId, event), () => {
+            updateTask(taskId, { status: 'failed' });
+            updateChatMessage(chatId, msgId, { status: 'failed', content: 'Task failed — check session budget.' });
+            setActiveTaskIds((prev) => { const s = new Set(prev); s.delete(taskId); return s; });
+        });
+        unsubRefs.current.set(taskId, unsub);
+    }, [address, apiKey, chatId]); // eslint-disable-line
+    // Load persisted messages from backend when switching chats
+    useEffect(() => {
+        if (!address || !chatId)
+            return;
+        const chat = chats[chatId];
+        if (!chat)
+            return;
+        // Always load from backend to get latest messages
+        fetchMessages(address, apiKey, chatId).then(({ messages: backendMsgs }) => {
+            if (backendMsgs.length === 0)
+                return;
+            // Clear existing and reload from backend
+            clearChatMessages(chatId);
+            backendMsgs.forEach(msg => {
+                addChatMessage(chatId, {
+                    id: msg.id,
+                    type: msg.type,
+                    content: msg.content,
+                    taskId: msg.taskId,
+                    audioUrl: msg.audioUrl,
+                    status: 'completed',
+                    createdAt: msg.createdAt * 1000,
+                    delegationSteps: [],
+                });
             });
-            const plan = await planRes.json();
-            setPlanPreview(plan);
-            addChatMessage(chatId, {
-                id: randomUUID(), type: 'system',
-                content: buildPlanMessage(plan),
-                createdAt: Date.now(),
-            });
-            if (plan.hasUserAgents && !agentChoice)
-                return; // Wait for user choice
+        }).catch(() => { });
+    }, [chatId, address]); // eslint-disable-line
+    function handleSSEEvent(taskId, msgId, event) {
+        switch (event.type) {
+            case 'delegation_step': {
+                const step = {
+                    agentName: event.agentName ?? '',
+                    status: event.status ?? 'pending',
+                    txHash: event.txHash,
+                    budgetAllocated: event.budgetAllocated,
+                };
+                updateDelegationStep(taskId, event.stepId ?? event.agentName ?? '', step);
+                const task = getTask(taskId);
+                if (task)
+                    updateChatMessage(chatId, msgId, { delegationSteps: task.delegationSteps });
+                break;
+            }
+            case 'step_confirmed':
+                updateDelegationStep(taskId, event.stepId ?? event.agentName ?? '', {
+                    status: 'confirmed', txHash: event.txHash, blockNumber: event.blockNumber, output: event.output,
+                });
+                break;
+            case 'step_blocked':
+                updateDelegationStep(taskId, event.stepId ?? event.agentName ?? '', {
+                    status: 'blocked', errorMessage: event.errorMessage ?? 'ReputationTooLow',
+                });
+                break;
+            case 'task_complete':
+                updateTask(taskId, { status: 'completed', result: event.result?.content, audioUrl: event.result?.audioUrl });
+                updateChatMessage(chatId, msgId, {
+                    status: 'completed', content: event.result?.content ?? '', audioUrl: event.result?.audioUrl, txDetails: event.result?.txDetails, totalSpentUsdc: event.result?.totalSpentUsdc,
+                });
+                setActiveTaskIds((prev) => { const s = new Set(prev); s.delete(taskId); return s; });
+                unsubRefs.current.get(taskId)?.();
+                // Refresh session budget from backend
+                if (address) {
+                    fetchChats(address, apiKey).then(({ threads }) => {
+                        const thread = threads.find(t => t.chatId === chatId);
+                        if (thread?.session) {
+                            updateChatSession(chatId, {
+                                remainingUsdc: thread.session.remainingUsdc,
+                                spentUsdc: thread.session.spentUsdc,
+                            });
+                        }
+                    }).catch(() => { });
+                }
+                break;
+            case 'task_failed':
+                updateTask(taskId, { status: 'failed' });
+                updateChatMessage(chatId, msgId, { status: 'failed', content: event.error ?? 'Task failed' });
+                setActiveTaskIds((prev) => { const s = new Set(prev); s.delete(taskId); return s; });
+                unsubRefs.current.get(taskId)?.();
+                break;
+            case 'autonomous_task_started':
+                addChatMessage(chatId, {
+                    id: randomUUID(), type: 'autonomous', content: '',
+                    taskId: event.taskId,
+                    scheduledBy: event.scheduledBy,
+                    triggeredBy: event.triggeredBy,
+                    status: 'running', delegationSteps: [], createdAt: Date.now(),
+                });
+                break;
+        }
+    }
+    async function handleSubmit() {
+        if (!input.trim() || !address || isSubmitting || !chatId)
+            return;
+        const prompt = input.trim();
+        setInput('');
+        setIsPlanning(true);
+        setPendingPrompt(prompt);
+        addChatMessage(chatId, {
+            id: randomUUID(), type: 'user', content: prompt, createdAt: Date.now(),
+        });
+        // Auto-name chat from first user message
+        const currentChat = getActiveChat();
+        const userMsgCount = (currentChat?.messages ?? []).filter(m => m.type === 'user').length;
+        if (userMsgCount === 0 && (currentChat?.name === 'New Chat' || !currentChat?.name)) {
+            const words = prompt.trim().split(/\s+/).slice(0, 5).join(' ');
+            const autoName = words.length < prompt.trim().length ? words + '…' : words;
+            useSessionStore.getState().renameChat(chatId, autoName);
+        }
+        try {
             if (!chatSession) {
                 setShowAuthorize(true);
                 return;
             }
-            await executeTask(prompt, plan, agentChoice ?? agentPreference);
+            await executeTask(prompt, null, agentPreference);
         }
         catch (err) {
             addChatMessage(chatId, {
                 id: randomUUID(), type: 'system',
-                content: `Planning failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+                content: `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
                 createdAt: Date.now(),
             });
         }
