@@ -245,7 +245,7 @@ export async function fetchMessages(userAddress: string, apiKey: string, session
     content: string
     taskId?: string
     audioUrl?: string
-    metadata?: string
+    metadata?: string | Record<string, any>
     createdAt: number
   }>
 }> {

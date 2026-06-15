@@ -117,6 +117,8 @@ export default function ChatView({ initialTaskId }: Props) {
           content: msg.content,
           taskId: msg.taskId,
           audioUrl: msg.audioUrl,
+          txDetails: (typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata)?.txDetails as any,
+          totalSpentUsdc: (typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata)?.totalSpentUsdc as any,
           status: 'completed',
           createdAt: msg.createdAt * 1000,
           delegationSteps: [],
@@ -224,6 +226,7 @@ export default function ChatView({ initialTaskId }: Props) {
       setIsPlanning(false)
     }
   }
+
 
   async function executeTask(
     prompt: string,
