@@ -1,0 +1,144 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  :root {
+    /* Change this one value to swap the background image across the whole app */
+    --app-bg: url('/bg.jpg');
+  }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    background-image: var(--app-bg);
+    background-size: cover;
+    background-position: top center;
+    background-attachment: fixed;
+    background-color: #0a0a10;
+  }
+
+  body {
+    background: transparent;
+    min-height: 100vh;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+  /* Selection */
+  ::selection { background: rgba(255,255,255,0.2); color: #ffffff; }
+}
+
+@layer components {
+  .font-display { font-family: 'Space Grotesk', sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* Address display */
+  .addr {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.4);
+  }
+
+  /* Card */
+  .card {
+    background: rgba(0, 0, 0, 0.40);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+  }
+
+  /* Glow effects for active/confirmed states */
+  .glow-accent { box-shadow: 0 0 12px rgba(228, 228, 231, 0.15); }
+  .glow-success { box-shadow: 0 0 12px rgba(16, 185, 129, 0.3); }
+  .glow-cyan { box-shadow: 0 0 12px rgba(161, 161, 170, 0.2); }
+
+  /* Status dots */
+  .dot-pending { 
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #F59E0B;
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  .dot-active { 
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #a1a1aa;
+    animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  .dot-success { 
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #10B981;
+  }
+  .dot-error { 
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #EF4444;
+  }
+
+  /* Markdown content */
+  .prose-nexario h1, .prose-nexario h2, .prose-nexario h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    color: #E2E8F0;
+    margin-top: 1.25em;
+    margin-bottom: 0.5em;
+  }
+  .prose-nexario h2 { font-size: 1.1rem; }
+  .prose-nexario h3 { font-size: 0.95rem; color: #94A3B8; }
+  .prose-nexario p { margin-bottom: 0.75em; line-height: 1.7; }
+  .prose-nexario ul { padding-left: 1.25em; margin-bottom: 0.75em; }
+  .prose-nexario li { margin-bottom: 0.25em; line-height: 1.6; }
+  .prose-nexario strong { color: #E2E8F0; font-weight: 600; }
+  .prose-nexario code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8em;
+    background: #1a1a1e;
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    color: #a1a1aa;
+  }
+  .prose-nexario table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    margin-bottom: 1em;
+  }
+  .prose-nexario th {
+    text-align: left;
+    padding: 0.4em 0.75em;
+    border-bottom: 1px solid #1E1E2E;
+    color: #64748B;
+    font-weight: 500;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .prose-nexario td {
+    padding: 0.4em 0.75em;
+    border-bottom: 1px solid #1a1a24;
+    color: #CBD5E1;
+  }
+  .prose-nexario tr:last-child td { border-bottom: none; }
+  .prose-nexario a { color: #e4e4e7; text-decoration: underline; }
+  .prose-nexario blockquote {
+    border-left: 2px solid #52525b;
+    padding-left: 0.75em;
+    color: #94A3B8;
+    font-style: italic;
+  }
+}
